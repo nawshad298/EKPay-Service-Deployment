@@ -1,0 +1,48 @@
+
+pipeline { 
+agent { 
+docker { 
+image 'maven:3.8.8-openjdk-8' 
+args '-v /var/run/docker.sock:/var/run/docker.sock' 
+} 
+} 
+
+environment { 
+GIT_CREDENTIALS = credentials('git-credentials') 
+HARBOR_CREDENTIALS = credentials('harbor-credentials') 
+HARBOR_URL = 'harbor.ekpay.local' 
+PROJECT = 'ekpay' 
+APP_NAME = 'payment-service' 
+DEPLOY_SERVER = 'deploy@192.168.10.20' // Change to your target server 
+} 
+stages { 
+stage('Checkout Code') { 
+steps { 
+git branch: 'main', 
+credentialsId: "${GIT_CREDENTIALS}", 
+url: 'https://github.com/ekpay/demo-java-service.git' 
+} 
+} 
+stage('Build Java App') { 
+steps { 
+sh 'mvn clean package -DskipTests' 
+} 
+} 
+stage('Build Docker Image') { 
+steps { 
+script { 
+sh """ 
+docker build -t ${HARBOR_URL}/${PROJECT}/${APP_NAME}:latest . 
+""" 
+    } 
+  } 
+} 
+stage('Push Image to Harbor') { 
+steps { 
+sh """ 
+echo $HARBOR_CREDENTIALS_PSW | docker login -u 
+$HARBOR_CREDENTIALS_USR --password-stdin $HARBOR_URL 
+docker push ${HARBOR_URL}/${PROJECT}/${APP_NAME}:latest 
+docker logout $HARBOR_URL 
+"""
+}
